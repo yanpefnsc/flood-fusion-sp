@@ -1,0 +1,7 @@
+﻿data_hora_inicio,data_hora_fim,via_registrada,sentido,status_intransitabilidade,ponto_referencia,subprefeitura,fonte_url
+2024-01-17T16:18:00-03:00,2024-01-17T17:00:00-03:00,AV ITAQUERA,AMBOS,Intransitável,R CAMPINAS DO PIAUI,Itaquera,https://www.saisp.br/historic/202401/dia17/
+2024-01-17T16:23:00-03:00,2024-01-17T17:15:00-03:00,R ITAGIMIRIM,NAO INFORMADO,Intransitável,R PDE VIEGAS DE MENEZES,Itaquera,https://www.saisp.br/historic/202401/dia17/
+2024-01-17T16:25:00-03:00,2024-01-17T16:56:00-03:00,AV ITAQUERA,AMBOS,Intransitável,R BARRA DE GUABIRABA,Itaquera,https://www.saisp.br/historic/202401/dia17/
+2024-01-17T16:47:00-03:00,2024-01-17T17:06:00-03:00,AV MIGUEL IGNACIO CURI,AMBOS,Intransitável,AV MIGUEL INACIO CURI,Itaquera,https://www.saisp.br/historic/202401/dia17/
+2024-01-17T17:33:00-03:00,2024-01-17T17:37:00-03:00,AV JACU PESSEGO N TRABALHADORES,NAO INFORMADO,Intransitável,ES DO IMPERADOR,Itaquera,https://www.saisp.br/historic/202401/dia17/
+2024-01-18T16:30:00-03:00,2024-01-18T17:05:00-03:00,AV MIGUEL IGNACIO CURI,CENTRO/BAIRRO,Transitável,CV ARIETA CALFAT KHOURI FARAH,Itaquera,https://www.saisp.br/historic/202401/dia18/
