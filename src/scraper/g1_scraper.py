@@ -1,6 +1,7 @@
 import json
 import logging
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional, Set
 import requests
@@ -8,7 +9,6 @@ from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
 from bs4 import BeautifulSoup
 from dateutil import parser as date_parser
-from pydantic import HttpUrl
 
 from src.scraper.models import RawNewsArticle
 
@@ -59,6 +59,8 @@ class G1Scraper:
                         dado = json.loads(linha)
                         if "article_id" in dado:
                             ids.add(dado["article_id"])
+                        elif "id" in dado:
+                            ids.add(dado["id"])
                     except json.JSONDecodeError:
                         continue
         return ids
@@ -123,6 +125,9 @@ class G1Scraper:
                 if raw_dt and not isinstance(raw_dt, list):
                     data_pub = date_parser.parse(str(raw_dt))
 
+            if not data_pub:
+                data_pub = datetime.now(timezone.utc)
+
             paragraphs = soup.find_all("p", class_="content-text__container")
             if not paragraphs:
                 article_node = soup.find("article")
@@ -130,14 +135,17 @@ class G1Scraper:
                     paragraphs = article_node.find_all("p")
 
             corpo_texto = " ".join([p.get_text(strip=True) for p in paragraphs if p.get_text(strip=True)])
+            if not corpo_texto:
+                return None
 
             article_id = RawNewsArticle.gerar_article_id(url)
 
             return RawNewsArticle(
                 article_id=article_id,
-                url=HttpUrl(url),
+                url=url,
                 portal="g1",
                 termo_busca=termo,
+                data_coleta=datetime.now(timezone.utc),
                 data_publicacao=data_pub,
                 titulo=titulo,
                 subtitulo=subtitulo,
@@ -165,7 +173,7 @@ class G1Scraper:
 
                 article = self.extrair_materia(url, termo=",".join(termos))
                 if article:
-                    f.write(article.model_dump_json() + "\n")
+                    f.write(article.model_dump_json(by_alias=True) + "\n")
                     ids_existentes.add(article.article_id)
                     novos_registos += 1
                     logger.info(f"[NOVO] Ingerido: {article.titulo[:50]}...")
