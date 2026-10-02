@@ -1,7 +1,7 @@
-"""Normalize Portuguese date and time expressions against a news timestamp."""
-
 from __future__ import annotations
 
+import json
+from pathlib import Path
 import re
 import unicodedata
 from datetime import date, datetime, time, timedelta
@@ -108,8 +108,6 @@ def _resolve_date(expression: str, anchor: datetime) -> date:
             if candidate > anchor.date():
                 previous_month = (anchor.month - 2) % 12 + 1
                 previous_year = anchor.year - (1 if anchor.month == 1 else 0)
-                # A trailing weekday day number usually refers to this month; if it
-                # lies in the future relative to publication, it refers to last month.
                 candidate = date(previous_year, previous_month, day_number)
             return candidate
 
@@ -123,8 +121,6 @@ def _resolve_date(expression: str, anchor: datetime) -> date:
         offset = (anchor.weekday() - target_weekday) % 7
         return anchor.date() - timedelta(days=offset)
 
-    # dateparser is already a project dependency; use it for unanticipated
-    # Portuguese forms after the explicit, deterministic rules above.
     try:
         import dateparser
 
@@ -153,16 +149,16 @@ def _clock_value(expression: str) -> time | None:
     return time(hour, minute)
 
 
-def _daypart_time(expression: str) -> time | None:
+def _daypart_time(expression: str) -> tuple[time, time] | None:
     folded = _fold(expression)
     if "madrugada" in folded:
-        return time(5)
+        return time(0, 0), time(5, 59, 59)
     if "manha" in folded:
-        return time(9)
+        return time(6, 0), time(11, 59, 59)
     if "tarde" in folded:
-        return time(15)
+        return time(12, 0), time(17, 59, 59)
     if "noite" in folded:
-        return time(21)
+        return time(18, 0), time(23, 59, 59)
     return None
 
 
@@ -173,13 +169,6 @@ def _iso_local(day: date, clock: time) -> str:
 def normalize_temporal_expression(
     expression: str, anchor: str | date | datetime
 ) -> dict[str, Any]:
-    """Return an ISO 8601 point or interval, anchored to the article timestamp.
-
-    A time of day without a clock is mapped to a representative local hour
-    (morning 09:00, afternoon 15:00, evening 21:00, dawn 05:00) and marked as
-    estimated. A date with no time is represented at midnight and marked as
-    date-only, so consumers can distinguish it from a reported exact time.
-    """
     anchor_dt = _anchor_datetime(anchor)
     day = _resolve_date(expression, anchor_dt)
     time_range = _RANGE_RE.search(expression)
@@ -196,36 +185,60 @@ def normalize_temporal_expression(
                 "kind": "interval",
                 "start": start.isoformat(timespec="seconds"),
                 "end": end.isoformat(timespec="seconds"),
-                "precision": "minute" if ":" in time_range.group("start") or "h" in time_range.group("start").lower() and len(time_range.group("start").split("h")[-1]) == 2 else "hour",
+                "precision": "minute" if ":" in time_range.group("start") or ("h" in time_range.group("start").lower() and len(time_range.group("start").split("h")[-1]) == 2) else "hour",
                 "estimated": False,
                 "normalizer": "portuguese_rules",
             }
 
     explicit_clock = _TIME_RE.search(expression)
     clock = _clock_value(explicit_clock.group("clock")) if explicit_clock else None
-    precision = "minute" if clock and (":" in explicit_clock.group("clock") or len(explicit_clock.group("clock").split("h")[-1]) == 2) else "hour"
-    estimated = False
-    if clock is None:
-        clock = _daypart_time(expression)
-        if clock:
-            precision = "part_of_day"
-            estimated = True
-        else:
-            clock = time.min
-            precision = "date"
-            estimated = True
+
+    if clock:
+        start = datetime.combine(day, clock, tzinfo=SAO_PAULO)
+        end = start + timedelta(hours=1)
+        precision = "minute" if explicit_clock and (":" in explicit_clock.group("clock") or len(explicit_clock.group("clock").split("h")[-1]) == 2) else "hour"
+        return {
+            "text": expression,
+            "kind": "point",
+            "start": start.isoformat(timespec="seconds"),
+            "end": end.isoformat(timespec="seconds"),
+            "value": _iso_local(day, clock),
+            "precision": precision,
+            "estimated": False,
+            "normalizer": "portuguese_rules",
+        }
+
+    daypart = _daypart_time(expression)
+    if daypart:
+        start_clock, end_clock = daypart
+        start = datetime.combine(day, start_clock, tzinfo=SAO_PAULO)
+        end = datetime.combine(day, end_clock, tzinfo=SAO_PAULO)
+        return {
+            "text": expression,
+            "kind": "interval",
+            "start": start.isoformat(timespec="seconds"),
+            "end": end.isoformat(timespec="seconds"),
+            "value": _iso_local(day, time(15) if "tarde" in _fold(expression) else time(9) if "manha" in _fold(expression) else time(21) if "noite" in _fold(expression) else time(5)),
+            "precision": "part_of_day",
+            "estimated": True,
+            "normalizer": "portuguese_rules",
+        }
+
+    start = datetime.combine(day, time.min, tzinfo=SAO_PAULO)
+    end = datetime.combine(day, time.max, tzinfo=SAO_PAULO)
     return {
         "text": expression,
         "kind": "point",
-        "value": _iso_local(day, clock),
-        "precision": precision,
-        "estimated": estimated,
+        "start": start.isoformat(timespec="seconds"),
+        "end": end.isoformat(timespec="seconds"),
+        "value": _iso_local(day, time.min),
+        "precision": "date",
+        "estimated": True,
         "normalizer": "portuguese_rules",
     }
 
 
 def extract_temporal_mentions(text: str, anchor: str | date | datetime) -> list[dict[str, Any]]:
-    """Find common Portuguese temporal expressions and normalize each mention."""
     candidates: list[tuple[int, int, str]] = []
     for match in _RANGE_RE.finditer(text):
         candidates.append((match.start(), match.end(), match.group(0)))
@@ -234,8 +247,6 @@ def extract_temporal_mentions(text: str, anchor: str | date | datetime) -> list[
     for match in _TIME_RE.finditer(text):
         candidates.append((match.start(), match.end(), match.group(0)))
 
-    # Prefer the longest match at a shared start, then drop overlaps so a range
-    # is not also emitted as two standalone clock mentions.
     candidates.sort(key=lambda item: (item[0], -(item[1] - item[0])))
     accepted: list[tuple[int, int, str]] = []
     for candidate in candidates:
@@ -245,4 +256,87 @@ def extract_temporal_mentions(text: str, anchor: str | date | datetime) -> list[
     return [normalize_temporal_expression(raw, anchor) for _, _, raw in accepted]
 
 
-__all__ = ["extract_temporal_mentions", "normalize_temporal_expression"]
+def normalizar_expressao_tempo(expressao: str, t0: datetime) -> tuple[datetime, datetime]:
+    res = normalize_temporal_expression(expressao, t0)
+    return datetime.fromisoformat(res["start"]), datetime.fromisoformat(res["end"])
+
+
+def processar_noticias_temporais(
+    input_path: str = "data/processed/noticias_anotadas.jsonl",
+    output_path: str = "data/processed/noticias_temporais.jsonl",
+) -> None:
+    src = Path(input_path)
+    dst = Path(output_path)
+    dst.parent.mkdir(parents=True, exist_ok=True)
+
+    with src.open("r", encoding="utf-8") as f_in, dst.open("w", encoding="utf-8") as f_out:
+        for line in f_in:
+            if not line.strip():
+                continue
+            item = json.loads(line)
+
+            pub_raw = item.get("published_at") or item.get("data_coleta")
+            anchor = _anchor_datetime(pub_raw) if pub_raw else datetime.now(SAO_PAULO)
+
+            entidades_raw = item.get("entities", [])
+            entidades_tempo = []
+
+            for ent in entidades_raw:
+                if isinstance(ent, dict):
+                    if ent.get("type") == "TEMPO" or ent.get("label") == "TEMPO":
+                        texto = ent.get("text") or ent.get("entity") or ""
+                        if texto:
+                            entidades_tempo.append(str(texto))
+                elif isinstance(ent, (list, tuple)) and len(ent) >= 2:
+                    if "TEMPO" in str(ent):
+                        entidades_tempo.append(str(ent[0]))
+                elif isinstance(ent, str) and ent.strip():
+                    entidades_tempo.append(ent.strip())
+
+            janelas = []
+            if entidades_tempo:
+                for texto_ent in entidades_tempo:
+                    norm = normalize_temporal_expression(texto_ent, anchor)
+                    janelas.append({
+                        "inicio_evento": norm["start"],
+                        "fim_evento": norm["end"],
+                        "texto": texto_ent,
+                        "detalhes": norm,
+                    })
+
+            if not janelas:
+                corpo = item.get("body") or item.get("corpo_texto") or ""
+                mencoes = extract_temporal_mentions(corpo, anchor)
+                if mencoes:
+                    for m in mencoes:
+                        janelas.append({
+                            "inicio_evento": m["start"],
+                            "fim_evento": m["end"],
+                            "texto": m["text"],
+                            "detalhes": m,
+                        })
+                else:
+                    ini = anchor - timedelta(hours=2)
+                    fim = anchor
+                    janelas.append({
+                        "inicio_evento": ini.isoformat(timespec="seconds"),
+                        "fim_evento": fim.isoformat(timespec="seconds"),
+                        "texto": "fallback_publicacao",
+                    })
+
+            item["janelas_temporais"] = janelas
+            item["inicio_evento"] = janelas[0]["inicio_evento"]
+            item["fim_evento"] = janelas[0]["fim_evento"]
+
+            f_out.write(json.dumps(item, ensure_ascii=False) + "\n")
+
+
+__all__ = [
+    "extract_temporal_mentions",
+    "normalize_temporal_expression",
+    "normalizar_expressao_tempo",
+    "processar_noticias_temporais",
+]
+
+if __name__ == "__main__":
+    processar_noticias_temporais()
