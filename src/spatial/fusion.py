@@ -34,24 +34,29 @@ def _montar_timestamp(row: pd.Series, campo_completo: str, campo_data: str, camp
         return ts.astimezone(timezone.utc)
 
     val_data = _extrair_campo(row, campo_data, "data", "date", "dia")
+    if not val_data:
+        raise ValueError(f"CGE sem coluna de data reconhecida, colunas: {list(row.index)}")
     val_hora = _extrair_campo(row, campo_hora, "hora", "horario", "time", padrao="00:00:00")
-    
-    texto_dt = f"{val_data} {val_hora}".strip()
-    ts = pd.to_datetime(texto_dt)
+
+    ts = pd.to_datetime(f"{val_data} {val_hora}".strip())
     if ts.tzinfo is None:
         return ts.tz_localize(SP_TZ).astimezone(timezone.utc)
     return ts.astimezone(timezone.utc)
 
 
 def carregar_e_padronizar_cge(csv_path: str, geocoder: ItaqueraGeocoder) -> gpd.GeoDataFrame:
-    df = pd.read_csv(csv_path)
+    df = pd.read_csv(csv_path, encoding="utf-8-sig")
     features: List[Dict[str, Any]] = []
 
     for idx, row in df.iterrows():
-        t_inicio = _montar_timestamp(row, "inicio", "data_inicio", "horario_inicio")
-        t_fim = _montar_timestamp(row, "fim", "data_fim", "horario_termino")
+        status = str(_extrair_campo(row, "status_intransitabilidade", "status", padrao="Intransitável"))
+        if "intransit" not in status.lower():
+            continue
 
-        logradouro_cge = str(_extrair_campo(row, "logradouro", "via", "local", "rua", "endereco"))
+        t_inicio = _montar_timestamp(row, "data_hora_inicio", "data_inicio", "horario_inicio")
+        t_fim = _montar_timestamp(row, "data_hora_fim", "data_fim", "horario_termino")
+
+        logradouro_cge = str(_extrair_campo(row, "via_registrada", "logradouro", "via", "rua", "endereco"))
         geom, conf, metodo = geocoder.geocodificar_entidade(logradouro_cge)
 
         feature = {
@@ -64,7 +69,7 @@ def carregar_e_padronizar_cge(csv_path: str, geocoder: ItaqueraGeocoder) -> gpd.
                 "fim_evento": t_fim.isoformat(),
                 "logradouro": logradouro_cge,
                 "sentido": _extrair_campo(row, "sentido", padrao=""),
-                "status_via": _extrair_campo(row, "status", padrao="INTRANSITAVEL"),
+                "status_via": status,
                 "confianca_espacial": conf,
             },
         }
