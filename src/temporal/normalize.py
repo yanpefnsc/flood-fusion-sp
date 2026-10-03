@@ -278,51 +278,34 @@ def processar_noticias_temporais(
             pub_raw = item.get("published_at") or item.get("data_coleta")
             anchor = _anchor_datetime(pub_raw) if pub_raw else datetime.now(SAO_PAULO)
 
-            entidades_raw = item.get("entities", [])
-            entidades_tempo = []
-
-            for ent in entidades_raw:
-                if isinstance(ent, dict):
-                    if ent.get("type") == "TEMPO" or ent.get("label") == "TEMPO":
-                        texto = ent.get("text") or ent.get("entity") or ""
-                        if texto:
-                            entidades_tempo.append(str(texto))
-                elif isinstance(ent, (list, tuple)) and len(ent) >= 2:
-                    if "TEMPO" in str(ent):
-                        entidades_tempo.append(str(ent[0]))
-                elif isinstance(ent, str) and ent.strip():
-                    entidades_tempo.append(ent.strip())
-
-            janelas = []
-            if entidades_tempo:
-                for texto_ent in entidades_tempo:
-                    norm = normalize_temporal_expression(texto_ent, anchor)
-                    janelas.append({
-                        "inicio_evento": norm["start"],
-                        "fim_evento": norm["end"],
-                        "texto": texto_ent,
-                        "detalhes": norm,
-                    })
-
-            if not janelas:
+            mencoes = item.get("temporal_mentions") or []
+            if not mencoes:
                 corpo = item.get("body") or item.get("corpo_texto") or ""
                 mencoes = extract_temporal_mentions(corpo, anchor)
-                if mencoes:
-                    for m in mencoes:
-                        janelas.append({
-                            "inicio_evento": m["start"],
-                            "fim_evento": m["end"],
-                            "texto": m["text"],
-                            "detalhes": m,
-                        })
-                else:
-                    ini = anchor - timedelta(hours=2)
-                    fim = anchor
-                    janelas.append({
-                        "inicio_evento": ini.isoformat(timespec="seconds"),
-                        "fim_evento": fim.isoformat(timespec="seconds"),
-                        "texto": "fallback_publicacao",
-                    })
+
+            janelas = []
+            for m in mencoes:
+                ini, fim = m.get("start"), m.get("end")
+                if not (ini and fim):
+                    norm = normalize_temporal_expression(m.get("text", ""), anchor)
+                    ini, fim = norm["start"], norm["end"]
+                janelas.append({
+                    "inicio_evento": ini,
+                    "fim_evento": fim,
+                    "texto": m.get("text", ""),
+                    "detalhes": m,
+                })
+
+            # horários exatos primeiro, estimados (ex.: "fim da tarde") depois
+            janelas.sort(key=lambda j: bool(j["detalhes"].get("estimated", True)))
+
+            if not janelas:
+                ini = anchor - timedelta(hours=2)
+                janelas.append({
+                    "inicio_evento": ini.isoformat(timespec="seconds"),
+                    "fim_evento": anchor.isoformat(timespec="seconds"),
+                    "texto": "fallback_publicacao",
+                })
 
             item["janelas_temporais"] = janelas
             item["inicio_evento"] = janelas[0]["inicio_evento"]

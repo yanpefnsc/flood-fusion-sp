@@ -54,8 +54,17 @@ class ItaqueraGeocoder:
         return self.centroide, 0.2, "CENTROIDE_FALLBACK"
 
 
-def extrair_nomes_logradouros(entidades: List[Any]) -> List[str]:
+def extrair_nomes_logradouros(entidades: Any) -> List[str]:
     resultados = []
+
+    if isinstance(entidades, dict):
+        for rotulo in ("LOGRADOURO", "PONTO_DE_REFERENCIA"):
+            for ent in entidades.get(rotulo, []):
+                texto = ent.get("text") if isinstance(ent, dict) else ent
+                if texto:
+                    resultados.append(str(texto))
+        return resultados
+
     for ent in entidades:
         if isinstance(ent, dict):
             tipo = ent.get("type") or ent.get("label") or ""
