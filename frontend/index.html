@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#172c2c"><meta name="description" content="Explorador de dados históricos de alagamentos em Itaquera. Registros CGE, notícias e fusão espaço-temporal.">
+  <title>Flood Fusion SP · Observatório de alagamentos</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='12' fill='%23207667'/%3E%3Cpath d='M8 16q6-7 12 0t12 0M8 24q6-7 12 0t12 0' fill='none' stroke='white' stroke-width='3'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/vendor/leaflet.css"><link rel="stylesheet" href="/styles.css">
+  <script src="/vendor/leaflet.js" defer></script><script src="/app.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Pular para o conteúdo</a>
+<aside class="sidebar">
+  <a class="brand" href="#overview" aria-label="Flood Fusion SP, início"><span class="brand-mark" data-icon="waves"></span><span>flood fusion<span class="brand-sub">SÃO PAULO</span></span></a>
+  <span class="nav-caption">ÁREA DE ANÁLISE</span>
+  <nav aria-label="Navegação principal">
+    <a class="nav-item active" href="#overview" data-page="overview"><span data-icon="dashboard"></span>Visão geral</a>
+    <a class="nav-item" href="#records" data-page="records"><span data-icon="list"></span>Ocorrências<span id="nav-count" class="nav-count">—</span></a>
+    <a class="nav-item" href="#sources" data-page="sources"><span data-icon="document"></span>Fontes e notícias</a>
+    <a class="nav-item" href="#pipeline" data-page="pipeline"><span data-icon="layers"></span>Pipeline de dados</a>
+  </nav>
+  <div class="sidebar-note"><span class="tiny-dot"></span> UM TERRITÓRIO, VÁRIAS FONTES<h3>Dados que conectam<br>o que a chuva separa.</h3><p>Uma leitura integrada dos impactos da chuva na mobilidade urbana.</p><div class="contours" aria-hidden="true"></div></div>
+  <a class="nav-item methodology" href="#methodology" data-page="methodology"><span data-icon="info"></span>Sobre a metodologia</a>
+  <div class="sidebar-footer"><span class="avatar">SP</span><span>Recorte de pesquisa<small>Itaquera · Zona Leste</small></span><span data-icon="pin"></span></div>
+</aside>
+<div class="workspace">
+  <header class="topbar"><div class="breadcrumb">Observatório <span>/</span> <strong id="breadcrumb">Visão geral</strong></div><div class="topbar-right"><span class="historical"><span class="tiny-dot"></span> Base histórica</span><span class="topbar-divider"></span><span class="location"><span data-icon="pin"></span> São Paulo, BR</span></div></header>
+  <main id="main" tabindex="-1">
+    <div id="load-error" class="error-banner" role="alert" hidden></div>
+    <section class="page-intro"><div><div class="eyebrow">INTELIGÊNCIA ESPAÇO-TEMPORAL</div><h1 id="page-title">Cada ocorrência, <span>mais contexto.</span></h1><p id="page-description">Explore os impactos das chuvas em Itaquera, conectando registros oficiais e notícias.</p></div><button id="refresh" class="button secondary"><span data-icon="refresh"></span>Atualizar dados</button></section>
+    <div id="loading" class="loading" role="status"><span class="spinner"></span> Lendo os dados do projeto…</div>
+    <div id="app" hidden>
+      <section class="filterbar" aria-label="Filtros dos registros" id="filters">
+        <label class="search"><span data-icon="search"></span><input id="search" type="search" placeholder="Buscar via ou referência…" aria-label="Buscar via ou referência"></label>
+        <label class="filter-select"><span data-icon="calendar"></span><select id="date" aria-label="Data do evento"><option value="">Todo o período</option></select></label>
+        <label class="filter-select"><span data-icon="filter"></span><select id="status" aria-label="Condição da via"><option value="">Todas as condições</option><option value="Intransitável">Intransitável</option><option value="Transitável">Transitável</option></select></label>
+        <label class="filter-select"><span data-icon="layers"></span><select id="dataset" aria-label="Base de dados"><option value="cge">Registros CGE</option><option value="fusion">Resultado da fusão</option></select></label>
+        <button id="clear" class="text-button" title="Limpar todos os filtros">Limpar</button>
+      </section>
+      <section id="overview" class="page">
+        <div id="metrics" class="metrics"></div>
+        <div class="analysis-grid">
+          <section class="panel map-panel"><div class="panel-heading"><div><div class="section-kicker">DISTRIBUIÇÃO ESPACIAL</div><h2>O território em perspectiva</h2></div><span class="pill neutral">Itaquera · SP</span></div>
+            <div class="map-wrap"><div id="map" aria-label="Mapa de Itaquera com camadas geográficas disponíveis"></div><div class="map-tools"><button id="fit-map" class="map-tool" title="Enquadrar dados" aria-label="Enquadrar dados"><span data-icon="focus"></span></button><button id="toggle-network" class="map-tool" title="Mostrar ou ocultar malha viária" aria-label="Mostrar ou ocultar malha viária" aria-pressed="false"><span data-icon="layers"></span></button></div><div id="map-notice" class="map-notice"></div><div class="map-label"><span class="tiny-dot"></span> RECORTE HISTÓRICO · NÃO É TEMPO REAL</div></div>
+            <div class="map-footer"><span><i class="legend-line"></i>Fusão de ocorrências</span><span><i class="legend-line news"></i>Notícias geolocalizadas</span><span id="map-count">0 geometrias</span></div>
+          </section>
+          <section class="panel evidence-panel"><div class="section-kicker">RASTREABILIDADE</div><h2>Da fonte à evidência.</h2><p class="muted">Diferentes camadas para entender o mesmo território.</p><div id="evidence"></div><a href="#sources" class="button secondary wide">Explorar as fontes<span data-icon="arrow"></span></a></section>
+        </div>
+        <section class="panel timeline-panel"><div class="panel-heading"><div><div class="section-kicker">LEITURA TEMPORAL</div><h2>Quando as vias foram afetadas</h2></div><span class="subtle">Horário de Brasília · UTC−3</span></div><div id="timeline"></div></section>
+        <section class="panel table-panel"><div class="panel-heading"><div><h2>Os registros por trás do mapa</h2><p class="muted" id="table-summary"></p></div><button class="button secondary export"><span data-icon="download"></span>Exportar CSV</button></div><div id="records-table"></div></section>
+      </section>
+      <section id="records" class="page" hidden><section class="panel"><div class="panel-heading"><div><h2>Explorador de ocorrências</h2><p class="muted">Selecione uma via para examinar os dados e a origem do registro.</p></div><button class="button secondary export"><span data-icon="download"></span>Exportar CSV</button></div><div id="full-table"></div></section></section>
+      <section id="sources" class="page" hidden><div class="source-heading"><div><h2>Corpus de notícias e boletins</h2><p class="muted">Textos originais, entidades extraídas e expressões temporais, sem duplicar as etapas de um mesmo artigo.</p></div><span id="article-count" class="pill neutral"></span></div><div id="articles" class="article-grid"></div><section class="panel files-panel"><div class="panel-heading"><div><h2>Arquivos do projeto</h2><p class="muted">Acesso aos dados de origem e a todos os produtos disponíveis.</p></div></div><div id="files"></div></section></section>
+      <section id="pipeline" class="page" hidden><section class="pipeline-intro"><span data-icon="layers"></span><div><h2>Um caminho dos dados até o território.</h2><p>Disponibilidade real dos arquivos locais. Atualize o painel depois de executar uma etapa do pipeline.</p></div></section><div id="pipeline-stages"></div><div id="data-warnings"></div></section>
+      <section id="methodology" class="page" hidden><div class="method-grid"><section class="panel prose"><div class="section-kicker">O PROJETO</div><h2>Conectar espaço, tempo e fontes.</h2><p>O Flood Fusion SP combina menções a alagamentos em textos com registros institucionais do CGE/PMSP, disponibilizados nos boletins do SAISP. O recorte de validação cobre Itaquera nos dias 17 e 18 de janeiro de 2024.</p><h3>Como funciona a fusão</h3><p>Os textos passam pela extração de entidades e normalização de datas. As vias são geocodificadas na malha do OpenStreetMap. O cruzamento usa uma área de 300 metros ao redor da geometria da notícia e a sobreposição dos intervalos de tempo, em SIRGAS 2000 / UTM 23S.</p><h3>Como ler a confiança</h3><p>É uma heurística fixa: 1,0 para confirmação dupla; 0,85 para CGE; e confiança da geocodificação para mídia. Não é uma probabilidade calibrada. Registros CSV ainda não processados não recebem uma confiança artificial neste painel.</p></section><section class="panel prose"><div class="section-kicker">CONTEXTO DE PESQUISA</div><h2>Limites que fazem parte da leitura.</h2><ul><li>O corpus anotado atual usa um boletim do próprio CGE; uma correspondência entre as fontes não constitui validação independente.</li><li>Proximidade espacial não significa a mesma via. O exemplo do README associa Rua Cunha Porã à Avenida Itaquera.</li><li>A primeira correspondência válida é escolhida pelo pipeline.</li><li>A coleta bruta pode incluir textos fora do tema. Estar no corpus não torna uma notícia evidência de alagamento.</li><li>O recorte é pequeno e histórico. Não representa condições atuais de circulação.</li></ul><h3>Representação no mapa</h3><p>Somente geometrias existentes nos GeoJSONs são desenhadas. Sem geocodificação, os registros continuam disponíveis na tabela e na linha do tempo. A posição inicial do mapa é apenas uma referência de navegação.</p></section></div></section>
+      <footer class="footer"><span><strong>flood fusion</strong> / SP <span class="footer-separator">·</span> Desenvolvido com <a href="https://github.com/YoshiroD" target="_blank" rel="noopener noreferrer"><strong>SrPoggers</strong></a></span><span id="loaded-at"></span></footer>
+    </div>
+  </main>
+</div>
+<dialog id="detail" aria-labelledby="detail-title"><div class="dialog-heading"><span class="section-kicker">DETALHES DO REGISTRO</span><button id="close-detail" class="icon-button" aria-label="Fechar detalhes"><span data-icon="close"></span></button></div><div id="detail-content"></div></dialog>
+<div id="toast" role="status" hidden></div>
+</body>
+</html>

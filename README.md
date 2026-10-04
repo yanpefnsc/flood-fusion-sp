@@ -159,6 +159,53 @@ python -m pytest
 
 ## Visualizando o resultado
 
+### Painel web integrado
+
+Veja o [guia da entrega do front-end e integração de dados](docs/PAINEL_WEB.md)
+para conhecer as telas, a arquitetura, as limitações e o roteiro de revisão.
+
+Na raiz do projeto, execute:
+
+```powershell
+python web_server.py
+```
+
+Abra **http://127.0.0.1:8765**. Para outra porta, use `python web_server.py --port 8766`.
+O servidor utiliza somente a biblioteca padrão do Python e escuta apenas na máquina local.
+Não é necessário instalar Node.js nem as dependências geoespaciais para consultar o painel.
+
+O front em `frontend/` oferece:
+
+- Visão geral com indicadores calculados sobre os filtros, mapa e linha do tempo.
+- Busca por via ou referência, filtro de data e condição da via.
+- Bases separadas para registros CGE e resultados da fusão, sem contagem duplicada.
+- Detalhes de cada ocorrência, link ao boletim original e exportação CSV do recorte.
+- Notícias e boletins com entidades, menções temporais e arquivos de origem.
+- Inventário com download dos arquivos de dados e disponibilidade das etapas do pipeline.
+- Interface responsiva, navegação por teclado e estados de erro ou ausência de dados.
+
+Os CSVs e JSONLs são lidos diretamente de `data/`. O botão **Atualizar dados** relê
+os arquivos sem reiniciar o servidor. Os registros transitáveis também são preservados.
+Notícias repetidas em etapas diferentes são reunidas por identificador, mantendo as anotações.
+
+O mapa lê `intransitabilidade_itaquera_final.geojson`,
+`noticias_geolocalizadas.geojson` e `itaquera_network.geojson` quando disponíveis.
+Na ausência desses produtos, não são inventadas coordenadas, fusões ou notas de confiança.
+Selecione **Resultado da fusão** para desenhar os resultados finais. O mapa base usa
+OpenStreetMap e requer internet; os dados, filtros e tabelas funcionam localmente.
+Leaflet 1.9.4 está incluído em `frontend/vendor/`, com sua licença. As fontes Google
+Fonts têm alternativas locais quando não há rede.
+
+O painel é de consulta: não dispara o scraper nem altera os dados do pipeline.
+As instruções das etapas estão na tela **Pipeline de dados** e nas seções acima.
+Para verificar o adaptador sem dependências extras:
+
+```powershell
+python -m unittest discover -s tests -p test_dashboard.py -v
+```
+
+### Outras ferramentas
+
 O GeoJSON abre diretamente no **QGIS** ou no **geojson.io**. Em Python:
 
 ```python
@@ -194,6 +241,6 @@ gdf.explore(column="status_fusao")  # requer folium e mapclassify
 
 <div align="center">
 
-Desenvolvido por **[yanpefnsc](https://github.com/yanpefnsc)** e **[Hyak00](https://github.com/Hyak00)**
+Desenvolvido por **[yanpefnsc](https://github.com/yanpefnsc)**, **[Hyak00](https://github.com/Hyak00)** e **[SrPoggers](https://github.com/YoshiroD)**
 
 </div>
